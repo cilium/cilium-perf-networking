@@ -1,0 +1,12 @@
+- hosts: all
+  become: true
+  tasks:
+  - name: Install netperf
+    apt:
+      update_cache: yes
+      name: "{{ packages }}"
+      state: present
+    vars:
+      packages:
+      - netperf
+

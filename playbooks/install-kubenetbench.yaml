@@ -1,0 +1,24 @@
+- hosts: master
+  vars:
+    kubenetbench_dir: "kubenetbench"
+
+  tasks:
+  - name: Install go 1.14 (and git,make)
+    apt:
+      update_cache: yes
+      name: "{{ packages }}"
+    vars:
+      packages:
+      - golang-1.14-go
+      - make
+      - git
+
+  - name: download/update kubenetbench
+    git:
+      repo: https://github.com/cilium/kubenetbench.git
+      dest: "{{ kubenetbench_dir }}"
+
+  - name: install kubenetbench
+    shell:
+      chdir: "{{ kubenetbench_dir }}"
+      cmd: make GO=/usr/lib/go-1.14/bin/go install

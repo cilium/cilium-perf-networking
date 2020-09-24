@@ -1,0 +1,364 @@
+#!/usr/bin/env python3
+#
+# Helper script for managing Packet devices.
+
+import argparse as ap
+import urllib.request as ureq
+import sys
+import time
+import json
+from pprint import pprint
+from collections import defaultdict
+import ipaddress
+
+import requests
+
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
+class PacketMg:
+    def __init__(self, token, proj_id, count):
+        self.prefix = "knb"
+        self.count = count
+        self.hostnames = [ "%s-%d" % (self.prefix, i,) for i in range(self.count) ]
+        self.token = token
+        self.proj_id = proj_id
+        self.base_url = "https://api.packet.net"
+        self.headers = {
+                "X-Auth-Token": self.token,
+                "Content-Type": "application/json",
+        }
+
+    def req_GET(self, path):
+        url = "%s/%s" % (self.base_url, path)
+        res = requests.get(url, headers=self.headers)
+        print("GET %s response: %d" % (url, res.status_code))
+        if res.content is None:
+            return None
+        else:
+            return res.json()
+
+    def req_POST(self, path, data):
+        url = "%s/%s" % (self.base_url, path)
+        res = requests.post(url, headers=self.headers, data=data)
+        print("POST %s response: %d" % (url, res.status_code))
+        if res.content is None:
+            return None
+        else:
+            return res.json()
+
+    def get_devices(self):
+        path = "projects/%s/devices" % (self.proj_id,)
+        resp = self.req_GET(path)
+
+        last_page = resp.get('meta', {}).get('last_page', -1)
+        if last_page == -1:
+            eprint("Unexpected response: %s", str(s))
+        elif last_page > 1:
+            eprint("TODO: handle multiple pages (last_page: %d)" % (last_page,))
+        return resp.get('devices', None)
+
+
+    def get_vlans(self):
+        path = "projects/%s/virtual-networks" % (self.proj_id,)
+        resp = self.req_GET(path)
+        return resp.get("virtual_networks", None)
+
+    def do_create_devices(self):
+        os = "ubuntu_20_04"
+        machine = "c3.small.x86"
+        data = {
+            'batches': [{
+                "hostnames": self.hostnames,
+                "plan": machine,
+                "quantity": self.count,
+                "operating_system": os,
+                "facility": ["ams1", "sjc1", "any"],
+                # all in the same facility
+                "facility_diversity_level": 1,
+            },
+            ]
+        }
+
+        data = json.dumps(data)
+        path = "projects/%s/devices/batch" % (self.proj_id,)
+        resp = self.req_POST(path, data)
+        #pprint(resp)
+        return resp
+
+    def create_vlan(self, name, facility):
+        path = "projects/%s/virtual-networks" % (self.proj_id,)
+        data = {
+            "project_id": self.proj_id,
+            "facility": facility,
+            "vxlan": None,
+            "vlan": None,
+            "description": name,
+        }
+        data = json.dumps(data)
+        resp = self.req_POST(path, data)
+        #pprint(resp)
+        return resp
+
+
+    def disbond_port(self, portid):
+        path = "ports/%s/disbond" % (portid,)
+        resp = self.req_POST(path, {})
+        #pprint(resp)
+        return resp
+
+    def assign_port(self, port_id, vlan_id):
+        path = "ports/%s/assign" % (port_id,)
+        data={'vnid': vlan_id}
+        data = json.dumps(data)
+        resp = self.req_POST(path, data)
+        #pprint(resp)
+        return resp
+
+    def create_devices_if_needed(self):
+        devices = self.get_devices()
+        dev_hostnames = set(d.get("hostname", None) for d in devices)
+        print("Existing hostnames:", dev_hostnames)
+        wanted_hostnames = set(h for h in self.hostnames)
+        print("Wanted hostnames:", wanted_hostnames)
+        common_hostnames = dev_hostnames.intersection(wanted_hostnames)
+        if len(common_hostnames) == 0:
+            print("Create devices...")
+            self.do_create_devices()
+        elif common_hostnames != dev_hostnames:
+            eprint("Existing machines: %s" ','.join(dev_hostnames))
+            eprint("Wanted machines: %s" ','.join(dev_hostnames))
+            raise RuntimeError
+        else:
+            print("Devices available...")
+
+    def wait_for_devices(self):
+        while True:
+            ready = 0
+            for dev in self.get_devices():
+                #pprint(dev)
+                hostname = dev.get("hostname", None)
+                events = dev.get("provisioning_events", None)
+                if events is None:
+                    print("%s is ready!" % (hostname,))
+                    ready += 1
+                    continue
+                percentage = dev.get("provisioning_percentage")
+                last_event = None
+                for event in events:
+                    if event.get("created_at", None) is None:
+                        break
+                    last_event = event
+                if last_event is None:
+                    last_event = "<None>"
+                print("%s:\n\tpercentage: %s\n\tlast event: %s (%s)" % (hostname, percentage, last_event.get("body", None), last_event.get("created_at", None)))
+
+            if ready == len(self.hostnames):
+                break
+            time.sleep(10)
+
+
+
+    def check_or_set_vlan(self, port, vlan_id):
+        vlans = port.get("virtual_networks", None)
+        if len(vlans) == 0:
+            print("interface %s has no vlans. Assigning vlan %s." % (port["name"], vlan_id,))
+            port_id = port["id"]
+            resp = self.assign_port(port_id, vlan_id)
+            print(resp)
+            return False
+
+        print("GOT vlans: %s" % vlans)
+        port_vlan_hrefs = set(x.get('href',None) for x in vlans)
+        vlan_href ="/virtual-networks/%s" % (vlan_id)
+        if vlan_href in port_vlan_hrefs:
+            print("VLAN %s already assigned port %s" % (vlan_id, port["name"]))
+            return True
+
+        pprint(port)
+        pprint(vlan_id)
+        raise ValueError("Unexpected state")
+
+    def check_or_set_hybrid_and_vlan(self, device, vlan_id):
+        ports = {}
+        for port in device.get("network_ports", []):
+            if "name" in port:
+                ports[port["name"]] = port
+
+        if sorted(ports.keys()) != sorted(["bond0", "eth0", "eth1"]):
+            eprint("Unexpected list of ports: %s", ','.join(ports))
+            raise RuntimeError
+
+        bond0_ty = ports["bond0"].get("network_type", None)
+        eth1_bonded = ports["eth1"].get("data", {}).get("bonded", None)
+        if bond0_ty == "hybrid" and not eth1_bonded:
+            print("interface bond0 is in hybrid mode and eth1 is not bonded. No need to disbond.")
+            return self.check_or_set_vlan(ports["eth1"], vlan_id)
+
+        if bond0_ty == "layer3" and eth1_bonded:
+            print("interface bond0 is in layer3 mode and eth1 is bonded. Disbonding eth1.")
+            portid = ports["eth1"].get("id", None)
+            resp = self.disbond_port(portid)
+            # resp holds the information for the new device (assuming
+            # everything went well) we could check the response and directly
+            # try and set the VLAN here. Instead, we return False and let the
+            # caller do another round so that we can verify that the bond0
+            # interface is also set into hybrid mode.
+            return False
+
+        print("Unexpected state:")
+        pprint(ports)
+        raise ValueError
+
+    def check_facility(self, devices):
+        facilities = defaultdict(list)
+        for device in devices:
+            facility = device.get("facility", None)
+            facilities[facility["code"]].append(facility)
+
+        if len(facilities) != 1:
+            pprint(facilities)
+            raise RuntimeError("wrong facilities number (expecting 1 got %d)" % (len(facilities),))
+
+        self.facility = list(facilities.keys())[0]
+        self.facilities = facilities[self.facility]
+        print("facility:", self.facility)
+
+    def set_knb_vlan(self):
+        vlan_id = None
+        for vlan in self.get_vlans():
+            #pprint(vlan)
+            if vlan.get("facility_code", None) == self.facility and vlan.get("description", None) == self.prefix:
+                self.vlan_id = vlan.get("id", None)
+                #vxlan_id = vlan.get("vxlan", None)
+                break
+        else:
+            print("Creating VLAN knb on %s" %(self.facility,))
+            res = self.create_vlan("knb", self.facilities[0].get("id", None))
+            self.vlan_id = res["id"]
+
+        print("VLAN:", self.vlan_id)
+
+    def configure_net(self):
+        devices = self.get_devices()
+        # find a single facility for all the devices
+        self.check_facility(devices)
+        # just print some info first
+        for device in devices:
+            hostname = device.get("hostname", None)
+            dev_href = device.get("href", None)
+            print("%s @%s (%s)" % (hostname, self.facility, dev_href))
+            print_dev_net_info(device)
+        # find the VLAN named "knb" that resides in our facility
+        self.set_knb_vlan()
+        # Now that we have the VLAN, try and set the devices into hybrid mod
+        # and assign the second one to the VLAN.
+        while True:
+            done = True
+            devices = self.get_devices()
+            for device in devices:
+                print("device:", device["hostname"])
+                ok = self.check_or_set_hybrid_and_vlan(device, self.vlan_id)
+                if not ok:
+                    done = False
+            if done:
+                break
+
+        # Print state again
+        for device in devices:
+            print_dev_net_info(device)
+        return devices
+
+def arg_parser():
+    parser = ap.ArgumentParser(prog='PROG')
+    parser.add_argument('--project-id', help='packet project id')
+    parser.add_argument('--api-token', help='packet API token')
+    parser.add_argument('--host-file', default="packet-hosts.ini", help='hosts filename')
+    parser.add_argument('--node-subnet', default="10.33.33.0/24", help='node subnet (used to set node_ip in inventory)')
+    parser.add_argument('-n', '--ndevices', help="number of devices to configure", type=int, default=2)
+    return parser
+
+def print_dev_net_info(device):
+    print("Ports:")
+    for port in device.get("network_ports", []):
+        name = port.get("name", None)
+        net_ty = port.get("network_type", None)
+        bonded = port.get("data", {}).get("bonded", None)
+        bonded_to = port.get("bond", {}).get("name", None) if bonded else None
+        href = port.get("href", None)
+        print("  %-5s ty:% -7s bonded:%5s bonded_to:% -7s (href: %s)" % (name, net_ty, bonded, bonded_to, href))
+
+    print("IPs:")
+    for ipaddr in device.get("ip_addresses"):
+        addr = ipaddr.get("address", None)
+        fam = ipaddr.get("address_family", None)
+        iface = ipaddr.get("interface", {}).get("href", None)
+        print("  %-30s fam:%s iface:%-s)" % (addr, fam, iface))
+
+def main(args):
+    pmg = PacketMg(token=args.api_token, proj_id=args.project_id, count=args.ndevices)
+    pmg.create_devices_if_needed()
+    pmg.wait_for_devices()
+    devices = pmg.configure_net()
+
+    hosts_ips = defaultdict(dict)
+    for dev in devices:
+        h = dev["hostname"]
+        (priv_ip, pub_ip) = (None, None)
+        for ipaddr in dev.get("ip_addresses"):
+            # ignore v6 address for now
+            if ipaddr.get("address_family", None) != 4:
+                continue
+            addr_s = ipaddr["address"]
+            addr = ipaddress.ip_address(addr_s)
+            if addr.is_global:
+                hosts_ips[h]["pub"] = addr_s
+            else:
+                hosts_ips[h]["prv"] = addr_s
+
+    print(hosts_ips)
+    node_ips = ipaddress.ip_network(args.node_subnet).hosts()
+    for i in range(9):
+        next(node_ips)
+
+    hline = lambda x: "%s ansible_python_interpreter=python3 ansible_user=root prv_ip=%s node_ip=%s" % (x["pub"], x["prv"], next(node_ips))
+    hosts = sorted(hosts_ips.keys())
+    with open(args.host_file, 'w') as f:
+        # NB: first node in sorted order is master
+        f.write("[master]\n")
+        l = hline(hosts_ips[hosts[0]])
+        l += " master=%s" % (hosts[0])
+        l += "\n"
+        f.write(l)
+        f.write("[nodes]\n")
+        for h in hosts[1:]:
+            l = hline(hosts_ips[h])
+            l += "\n"
+            f.write(l)
+
+
+    print("You might want to update your ~/.ssh/config:")
+    for host in hosts:
+        print("Host %s" % (host))
+        print("    Hostname %s" % (hosts_ips[host]["pub"]))
+        print("    User root")
+
+    print("And also run:")
+    for host in hosts:
+        print("$ ssh-keygen -f ~/.ssh/known_hosts -R %s"  % (hosts_ips[host]["pub"],))
+
+if __name__ == "__main__":
+    parser = arg_parser()
+    args = parser.parse_args()
+
+    if args.api_token is None:
+        eprint("Please define a packet API token")
+        sys.exit(1)
+
+    if args.project_id is None:
+        eprint("Please define a packet project ID")
+        sys.exit(1)
+
+    #print(args)
+    main(args)

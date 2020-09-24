@@ -1,0 +1,10 @@
+- hosts: all
+  tasks:
+  - name: check if bond0 exists
+    stat:
+       path: /sys/class/net/bond0/bonding/slaves
+    register: bond0
+
+  - name: disbond interfaces
+    script: ../scripts/packet-disbond-ifaces.pl {{ node_ip }}
+    when: bond0.stat.exists

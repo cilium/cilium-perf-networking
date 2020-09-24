@@ -1,0 +1,14 @@
+- hosts: all
+  tasks:
+  - name: set mtu on node_ip dev
+    script: ../scripts/set-mtu-for-ip.sh {{ node_ip }} {{ mtu }}
+    when: mtu is defined
+
+- hosts: master
+  tasks:
+  - name: set mtu on cilium
+    script: ../scripts/cilium-set-mtu.sh {{ mtu }}
+    when: mtu is defined
+
+  - name: restart cilium
+    command: kubectl delete pods -n kube-system -l k8s-app=cilium

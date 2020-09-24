@@ -1,0 +1,39 @@
+- hosts: master
+  vars:
+    benchmarks: --tcp_maerts --tcp_rr --tcp_stream
+    fname: knb-raw-results
+    loutfile: "../{{ fname }}" # break out of the playbook dir
+    routfile: "{{ fname }}"
+
+  tasks:
+  - name: check if outfile exists locally
+    stat: path={{ loutfile  }}
+    register: outl
+    delegate_to: localhost
+
+  - name: block playbook if outfile exists locally
+    command: /bin/false
+    when: outl.stat.exists
+    delegate_to: localhost
+
+  - name: check if outfile exists remotely
+    stat: path={{ routfile  }}
+    register: outr
+
+  - name: block playbook if outfile exists remotely
+    command: /bin/false
+    when: outr.stat.exists
+
+  - name: copy netperf script
+    copy: src=../scripts/knb-run-raw.sh dest=knb-run-raw.sh mode=0777
+
+  - name: run netperf script
+    shell:
+      # TODO: dont hardcode the IP here
+      cmd: ./knb-run-raw.sh {{ benchmarks }} 10.33.33.11 > {{ routfile }}
+
+  - name: fetch output
+    fetch:
+      src: "{{ routfile  }}"
+      dest: "{{ loutfile }}"
+      flat: yes

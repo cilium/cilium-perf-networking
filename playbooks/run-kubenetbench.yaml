@@ -1,0 +1,32 @@
+- hosts: master
+  vars:
+    benchmarks: --tcp_rr --tcp_stream --tcp_maerts
+    xip: "{{ hostvars[inventory_hostname]['ansible_env'].SSH_CONNECTION.split(' ')[2] }}"
+  tasks:
+
+  # TODO: fix this... maybe add a var for the user to specify the directory?
+  - name: store cwd
+    shell: realpath ..
+    register: pwd_result
+    delegate_to: localhost
+
+  - name: create local results directory
+    command: mkdir {{ pwd_result.stdout }}/{{ conf }}
+    delegate_to: localhost
+
+  - name: run cilium-info script
+    script: ../scripts/cilium-info.sh
+    register: info_result
+
+  - name: Copy cilium info
+    copy:
+      content: "{{ info_result.stdout }}"
+      dest: "{{ pwd_result.stdout }}/{{ conf }}/cilium_info"
+    delegate_to: localhost
+
+  - name: run kubenetbench script
+    script: ../scripts/knb-run.sh {{ benchmarks }} {{ conf }} knb-1 knb-0
+
+  - name: rsync results back to localhost
+    command: rsync -e ssh -avPz root@{{ xip }}:{{ conf }}/. {{ pwd_result.stdout }}/{{ conf }}/
+    delegate_to: localhost
