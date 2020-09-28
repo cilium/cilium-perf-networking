@@ -104,18 +104,37 @@
       packages:
         - snapd
 
-  - name: Install Helm with option --classic
+  - name: Install Helm
     become: true
     snap:
       name: helm
       classic: yes
 
   handlers:
-    - name: docker status
-      service: name=docker state=started
+    - name: helm status
+      service: name=helm state=started
 
 - hosts: master
   tasks:
-  - name: Setup Helm repo
+  - name: Add the apt signing key for Helm
+    apt_key:
+      url: https://baltocdn.com/helm/signing.asc
+      state: present
+
+  - name: Add the apt repository for Helm
+    apt_repository:
+      repo: deb https://baltocdn.com/helm/stable/debian/ all main
+      state: present
+      filename: helm-stable-debian.list
+
+  - name: Install Helm
+    apt:
+      name: "{{ packages }}"
+      update_cache: yes
+    vars:
+      packages:
+        - helm
+
+  - name: add Cilium Helm Repo
     command: /snap/bin/helm repo add cilium https://helm.cilium.io
     failed_when: False
