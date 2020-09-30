@@ -12,3 +12,4 @@
 
   - name: restart cilium
     command: kubectl delete pods -n kube-system -l k8s-app=cilium
+    when: mtu is defined
