@@ -1,1 +1,1 @@
-https://docs.cilium.io/en/latest/concepts/performance/
+https://docs.cilium.io/en/latest/operations/performance/
