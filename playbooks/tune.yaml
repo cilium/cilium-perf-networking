@@ -1,0 +1,51 @@
+- hosts: all
+  vars:
+    # ANSIBLE_STDOUT_CALLBACK=yaml
+    - debug_iface: true
+    - debug_tuned: true
+    - debug_irqs: true
+    - tuned_profile: "network-throughput"
+
+  tasks:
+  - name: Install tuned (and psmisc)
+    apt:
+      update_cache: yes
+      name: "{{ packages }}"
+      state: present
+    vars:
+      packages:
+      - tuned
+      - psmisc
+
+  - name: Kill irqbalance
+    shell: pkill irqbalance --wait
+    failed_when: False
+
+  - name: get node interface name
+    script: ../scripts/get-iface-with-ip.sh "{{ node_ip }}"
+    register: node_iface
+
+  - debug: var=node_iface.stdout
+    when: debug_iface
+
+  - name: set IRQ affinity
+    script: ../scripts/set_irq_affinity "{{ node_iface.stdout_lines[0] }}"
+
+  - name: get IRQ affinity
+    script: ../scripts/nicqsmg.sh "{{ node_iface.stdout_lines[0] }}" irq_pr
+    register: irq_affinity
+    when: debug_irqs
+
+  - debug: var=irq_affinity.stdout
+    when: debug_irqs
+
+  - name: set tuned profile
+    shell: tuned-adm profile "{{ tuned_profile }}"
+
+  - name: get tuned profile
+    shell: tuned-adm  profile_info
+    register: tuned_profile_info
+    when: debug_tuned
+
+  - debug: var=tuned_profile_info
+    when: debug_tuned
