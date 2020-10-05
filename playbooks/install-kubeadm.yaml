@@ -114,6 +114,9 @@
     - name: helm status
       service: name=helm state=started
 
+    - name: docker status
+      service: name=docker state=started
+
 - hosts: master
   tasks:
   - name: Add the apt signing key for Helm
@@ -138,3 +141,4 @@
   - name: add Cilium Helm Repo
     command: /snap/bin/helm repo add cilium https://helm.cilium.io
     failed_when: False
+
