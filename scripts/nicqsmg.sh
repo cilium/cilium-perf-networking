@@ -262,6 +262,10 @@ function eth_irqs() {
 		x="i40e-$iface-TxRx-(\d+)"
 		;;
 
+    ice)
+		x="ice-$iface-TxRx-(\d+)"
+        ;;
+
 	sfc)
 		x="$iface-(\d+)"
 		;;
