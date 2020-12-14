@@ -6,11 +6,26 @@ RR_METRICS="TRANSACTION_RATE,P50_LATENCY,P90_LATENCY,RT_LATENCY,MEAN_LATENCY,STD
 
 set -e
 
+function run_duper_netperf() {
+    loops=$1
+    shift
+    echo "DUPER_NETPERF: NSTREAMS=$loops ARGS=$@"
+    for ((i=0; i<loops; i++)); do
+        prefix="$(printf "%02d" $i) "
+        (netperf -s 2 "$@" | sed -e "s/^/$prefix/") &
+    done
+    wait
+}
+
+function duper_netperf() {
+    run_duper_netperf "$@" | perl -ln -e 'BEGIN { $sum = 0; $count = 0 } END { print "NSTREAMS=$count\nAGGREGATE_THROUGHPUT=$sum"; } if (/ THROUGHPUT=(\S+)$/) { $sum += $1; $count += 1 } print;'
+}
+
 function dorr() {
     local proto=$1
 
     for b in 0 1 2 4 8 16 32 64 128 256 512; do
-        $CMD_PREFIX netperf         \
+        cmd="$CMD_PREFIX netperf    \
             -t ${proto}_rr          \
             -l 120                  \
             -D 10                   \
@@ -20,14 +35,37 @@ function dorr() {
             -P  ,8000               \
             -k $METRICS,$RR_METRICS \
             -r 1,1                  \
-            -b $b
+            -b $b"
+
+        echo $cmd
+        $cmd
+        echo "END"
+    done
+}
+
+function dostream_duper() {
+    local ty=$1
+    for nstreams in 1 2 4 8 16; do
+        cmd="duper_netperf $nstreams  \
+            $CMD_PREFIX netperf       \
+            -H $rhost                 \
+            -D 10                     \
+            -l 300                    \
+            -t $ty                    \
+            -j                        \
+            --                        \
+            -P ,8000                  \
+            -k $METRICS"
+
+        echo $cmd
+        $cmd
         echo "END"
     done
 }
 
 function dostream() {
     local ty=$1
-    $CMD_PREFIX netperf       \
+    cmd="$CMD_PREFIX netperf  \
         -H $rhost             \
         -D 10                 \
         -l 300                \
@@ -35,7 +73,10 @@ function dostream() {
         -j                    \
         --                    \
         -P ,8000              \
-        -k $METRICS
+        -k $METRICS"
+
+    echo $cmd
+    $cmd
     echo "END"
 }
 
@@ -112,15 +153,16 @@ fi
 
 rhost=$1
 
-
 for _ in $(seq $nloops) ; do
 
     # Stream
     if [ "$run_tcp_stream" == "1" ]; then
         dostream "tcp_stream"
+        dostream_duper "tcp_stream"
     fi
     if [ "$run_tcp_maerts" == "1" ]; then
         dostream "tcp_maerts"
+        dostream_duper "tcp_maerts"
     fi
     if [ "$run_udp_stream" == "1" ]; then
         dostream "udp_stream"
