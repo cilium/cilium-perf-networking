@@ -1,0 +1,16 @@
+- hosts: all
+  vars:
+     - iface_100g: enp10s0f0
+     - iface_10g:  enp12s0f0
+  tasks:
+     - name: Assign IPs
+       shell: "{{ item }}"
+       with_items:
+         # - ip addr add {{ ip_10g }}/24  dev {{ iface_10g }}
+          - ip addr add {{ ip_100g }}/24 dev {{ iface_100g }}
+
+     - name: Raise interfaces
+       shell: "{{ item }}"
+       with_items:
+         # - ip link set dev {{ iface_10g }} up
+          - ip link set dev {{ iface_100g }} up
