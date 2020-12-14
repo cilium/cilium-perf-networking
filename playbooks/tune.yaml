@@ -7,7 +7,7 @@
     - tuned_profile: "network-throughput"
 
   tasks:
-  - name: Install tuned (and psmisc)
+  - name: Install tuned (and psmisc and jq)
     apt:
       update_cache: yes
       name: "{{ packages }}"
@@ -16,6 +16,7 @@
       packages:
       - tuned
       - psmisc
+      - jq
 
   - name: Kill irqbalance
     shell: pkill irqbalance --wait
