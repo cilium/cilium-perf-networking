@@ -20,6 +20,8 @@ README="https://raw.githubusercontent.com/cilium/cilium/master/README.rst"
 # x.y
 if echo $version | grep -Eq '^v?[0-9]\.[0-9]$'; then
 		case "$version" in
+			v1.9|1.9) helm_ver=$(curl -s $README | sed -ne 's/^| `v1\.9.*docker.io\/cilium\/cilium:v\([^`]\+\).*$/\1/p')
+                ;;
 			v1.8|1.8) helm_ver=$(curl -s $README | sed -ne 's/^| `v1\.8.*docker.io\/cilium\/cilium:v\([^`]\+\).*$/\1/p')
 				;;
 			v1.7|1.7) helm_ver=$(curl -s $README | sed -ne 's/^| `v1\.7.*docker.io\/cilium\/cilium:v\([^`]\+\).*$/\1/p')
@@ -48,7 +50,9 @@ fi
 
 yaml_file=$(pwd)/cilium-install.yaml
 if [ -n "$helm_ver" ]; then
-    echo "helm_ver: $helm_ver"
+    echo "helm_ver:  $helm_ver"
+    echo "helm_opts: $@"
+    helm repo update
     helm template cilium cilium/cilium --version $helm_ver "$@" > $yaml_file
 else
     echo "git_ver:$git_ver cilium_image:$cilium_image"
