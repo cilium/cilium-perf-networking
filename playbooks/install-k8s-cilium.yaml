@@ -4,6 +4,16 @@
     become: true
     command: kubeadm reset -f
 
+  # not sure what the actual issue is here, need to investigate deeper
+  #- name: Reinstall docker and friends
+  #  shell: "{{ item }}"
+  #  args:
+  #    warn: false
+  #  with_items:
+  #     - apt-get -y remove --purge docker-ce docker-ce-rootless-extras  docker-ce-cli containerd.io
+  #     - apt autoremove
+  #     - apt-get -y install docker-ce docker-ce-cli docker-ce-rootless-extras containerd.io
+
 - hosts: master
   vars:
     pod_cidr: "10.217.0.0/16"
