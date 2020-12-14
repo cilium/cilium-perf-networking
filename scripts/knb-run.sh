@@ -76,6 +76,21 @@ function dostream() {
                 --netperf-type $ty                             \
                 --netperf-args "-D" --netperf-args "10"        \
             #
+
+            for nstreams in 1 2 4 8 16; do
+                $CMD_PREFIX $xdir/knb pod2pod                      \
+                    --duration 300                                 \
+                    --run-label "duper-$label-n${nstreams}"        \
+                    --netperf-nstreams ${nstreams}                  \
+                    $cli_host_opt                                  \
+                    $srv_host_opt                                  \
+                    --client-affinity host=$cli_node               \
+                    --server-affinity host=$srv_node               \
+                    --benchmark netperf                            \
+                    --netperf-type $ty                             \
+                    --netperf-args "-D" --netperf-args "10"        \
+                #
+                done
         done
     done
 }
