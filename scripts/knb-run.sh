@@ -146,14 +146,15 @@ while true; do
     shift
 done
 
-if [ -z "$3" ]; then
-    echo >&2 "Usage: $0 [--{tcp,udp}_stream] [--tcp_maerts] [--{tcp,udp}_rr] [--all] [--nloops n] [--dry-run] <dir> <srv_node> <cli_node>"
+if [ -z "$1" ]; then
+    echo >&2 "Usage: $0 [--{tcp,udp}_stream] [--tcp_maerts] [--{tcp,udp}_rr] [--all] [--nloops n] [--dry-run] <dir>"
     exit 1
 fi
 
 xdir=$1
-srv_node=$2
-cli_node=$3
+readarray -t nodes < <(kubectl get nodes --no-headers | awk '{ print $1 }')
+cli_node=${nodes[0]}
+srv_node=${nodes[1]}
 
 $CMD_PREFIX ~/go/bin/kubenetbench init -s $xdir
 

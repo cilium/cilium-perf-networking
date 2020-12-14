@@ -4,8 +4,13 @@
     fname: knb-raw-results
     loutfile: "../{{ fname }}" # break out of the playbook dir
     routfile: "{{ fname }}"
+    # Use the node_ip of the first node to connect to for raw benchmarks
+    nodeIP: "{{ hostvars[groups['nodes'][0]]['node_ip'] }}"
 
   tasks:
+  - name: node IP
+    debug: msg="{{ nodeIP }}"
+
   - name: check if outfile exists locally
     stat: path={{ loutfile  }}
     register: outl
@@ -24,13 +29,13 @@
     command: /bin/false
     when: outr.stat.exists
 
+
   - name: copy netperf script
     copy: src=../scripts/knb-run-raw.sh dest=knb-run-raw.sh mode=0777
 
   - name: run netperf script
     shell:
-      # TODO: dont hardcode the IP here
-      cmd: ./knb-run-raw.sh {{ benchmarks }} 10.33.33.11 > {{ routfile }}
+      cmd: ./knb-run-raw.sh {{ benchmarks }} {{ nodeIP }} > {{ routfile }}
 
   - name: fetch output
     fetch:

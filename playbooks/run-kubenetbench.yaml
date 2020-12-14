@@ -25,7 +25,7 @@
     delegate_to: localhost
 
   - name: run kubenetbench script
-    script: ../scripts/knb-run.sh {{ benchmarks }} {{ conf }} knb-1 knb-0
+    script: ../scripts/knb-run.sh {{ benchmarks }} {{ conf }}
 
   - name: rsync results back to localhost
     command: rsync -e ssh -avPz root@{{ xip }}:{{ conf }}/. {{ pwd_result.stdout }}/{{ conf }}/
