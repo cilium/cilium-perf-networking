@@ -1,0 +1,60 @@
+# 1st approach: https://docs.projectcalico.org/getting-started/kubernetes/quickstart (VXLAN by default)
+#  kubectl create -f https://docs.projectcalico.org/manifests/tigera-operator.yaml
+#  kubectl create -f https://docs.projectcalico.org/manifests/custom-resources.yaml
+#  Change pod CIDR in custom-resources
+#  iptables --policy FORWARD ACCEPT
+# (works)
+#
+
+- hosts: all
+  tasks:
+  - name: Reset all kubeadm state
+    become: true
+    command: kubeadm reset -f
+
+- hosts: master
+  vars:
+    pod_cidr: "10.217.0.0/16"
+
+  tasks:
+  - name: Initialize the Kubernetes cluster with kube-proxy
+    become: true
+    command: kubeadm init --pod-network-cidr={{ pod_cidr }}  --apiserver-advertise-address={{ node_ip }} --apiserver-cert-extra-sans={{ node_ip }}
+
+  - name: Setup kubeconfig
+    command: "{{ item }}"
+    with_items:
+     - mkdir -p "$HOME/.kube"
+     - sudo cp /etc/kubernetes/admin.conf "$HOME/.kube/config"
+     - sudo chown "{{ ansible_user }}:{{ ansible_user }}" "$HOME/.kube/config"
+
+  - name: Setup calico (VXLAN)
+    shell: |
+      curl -O https://docs.projectcalico.org/manifests/tigera-operator.yaml
+      curl -O https://docs.projectcalico.org/manifests/custom-resources.yaml
+      PODCIDR="{{ pod_cidr }}"
+      sed -i.orig -e "s!cidr: 192.168.0.0/16!cidr: $PODCIDR!" custom-resources.yaml
+      kubectl apply -f tigera-operator.yaml
+      kubectl apply -f custom-resources.yaml
+
+  - name: Generate the kubeadm join command
+    command: kubeadm token create --print-join-command
+    register: join_command
+
+  - name: Copy the kubeadm join command to a local file
+    local_action: copy content="{{ join_command.stdout_lines[0] }}" dest="./join-command"
+
+  - name: Allow scheduling pods on the control-plane node
+    command: kubectl taint nodes {{ master }} node-role.kubernetes.io/master-
+
+- hosts: nodes
+  become: true
+  tasks:
+  - name: Copy the kubadm join command to the node
+    copy: src=join-command dest=/tmp/join-command.sh mode=0777
+
+  - name: Join the node to the cluster
+    command: sh /tmp/join-command.sh
+
+
+# 2nd approach: https://docs.projectcalico.org/getting-started/kubernetes/self-managed-onprem/onpremises#install-calico-with-kubernetes-api-datastore-50-nodes-or-less (IPIP by default)
