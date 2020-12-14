@@ -10,7 +10,7 @@
     kubeproxyfree: "strict"
     mode: "directrouting"
     encryption: "no"
-    cilium_version: "1.8"
+    cilium_version: "1.9"
 
   tasks:
   - name: Initialize the Kubernetes cluster with kube-proxy
@@ -42,7 +42,32 @@
        --set global.gke.enabled=true
        --set global.nativeRoutingCIDR=10.0.0.0/8
        --set global.autoDirectNodeRoutes=true
-    when: mode == "directrouting" and encryption == "no"
+    when: mode == "directrouting" and encryption == "no" and cilium_version != "1.9"
+
+  # NB: cilium 1.9 and later uses different helm values.
+  - name: Install Cilium (1.9) in direct-routing mode
+    script: >
+       ../scripts/cilium-install-with-helm.sh {{ cilium_version }}
+       --namespace kube-system
+       --set k8sServiceHost={{ node_ip }}
+       --set k8sServicePort=6443
+       --set ipam.mode=kubernetes
+       --set kubeProxyReplacement={{ kubeproxyfree | default("strict") }}
+       --set gke.enabled=true
+       --set nativeRoutingCIDR=10.0.0.0/8
+       --set autoDirectNodeRoutes=true
+    when: mode == "directrouting" and encryption == "no" and cilium_version == "1.9"
+
+  # NB: cilium 1.9 and later uses different helm values.
+  - name: Install Cilium (1.9) in VXLAN tunneling mode
+    script: >
+       ../scripts/cilium-install-with-helm.sh {{ cilium_version }}
+       --namespace kube-system
+       --set k8sServiceHost={{ node_ip }}
+       --set k8sServicePort=6443
+       --set ipam.mode=kubernetes
+       --set kubeProxyReplacement={{ kubeproxyfree | default("strict") }}
+    when: mode == "tunneling" and encryption == "no" and cilium_version == "1.9"
 
   - name: Install Cilium in VXLAN tunneling mode
     script: >
@@ -53,7 +78,7 @@
       --set config.ipam=kubernetes
       --set config.blacklistConflictingRoutes=false
       --set global.kubeProxyReplacement={{ kubeproxyfree | default("strict") }}
-    when: mode == "tunneling" and encryption == "no"
+    when: mode == "tunneling" and encryption == "no" and cilium_version != "1.9"
 
   - name: Generate keys
     script: ../scripts/cilium-gen-keys.sh
