@@ -1,4 +1,4 @@
-# 1st approach: https://docs.projectcalico.org/getting-started/kubernetes/quickstart (VXLAN by default)
+# 1st approach: https://docs.projectcalico.org/getting-started/kubernetes/quickstart
 #  kubectl create -f https://docs.projectcalico.org/manifests/tigera-operator.yaml
 #  kubectl create -f https://docs.projectcalico.org/manifests/custom-resources.yaml
 #  Change pod CIDR in custom-resources
@@ -15,6 +15,7 @@
 - hosts: master
   vars:
     pod_cidr: "10.217.0.0/16"
+    mode: "tunneling"
 
   tasks:
   - name: Initialize the Kubernetes cluster with kube-proxy
@@ -28,12 +29,20 @@
      - sudo cp /etc/kubernetes/admin.conf "$HOME/.kube/config"
      - sudo chown "{{ ansible_user }}:{{ ansible_user }}" "$HOME/.kube/config"
 
-  - name: Setup calico (VXLAN)
+  - name: Download (and patch) calico files
     shell: |
       curl -O https://docs.projectcalico.org/manifests/tigera-operator.yaml
       curl -O https://docs.projectcalico.org/manifests/custom-resources.yaml
       PODCIDR="{{ pod_cidr }}"
       sed -i.orig -e "s!cidr: 192.168.0.0/16!cidr: $PODCIDR!" custom-resources.yaml
+
+  - name: Configure calico to always use VXLAN
+    shell: |
+      sed -i.orig -e "s/encapsulation:.*$/encapsulation: VXLAN/" custom-resources.yaml
+    when: mode == "tunneling"
+
+  - name: Install Calico
+    shell: |
       kubectl apply -f tigera-operator.yaml
       kubectl apply -f custom-resources.yaml
 
