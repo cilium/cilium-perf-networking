@@ -21,6 +21,7 @@
     mode: "directrouting"
     encryption: "no"
     cilium_version: "1.9"
+    host_routing: "legacy"
 
   tasks:
   - name: Initialize the Kubernetes cluster with kube-proxy
@@ -52,6 +53,7 @@
        --set global.nativeRoutingCIDR=10.0.0.0/8
        --set global.autoDirectNodeRoutes=true
        --set global.tunnel=disabled
+       --set global.bpf.hostRouting={{ "true" if host_routing == "legacy" else "false" }}
     when: mode == "directrouting" and encryption == "no" and cilium_version != "1.9"
 
   # NB: cilium 1.9 and later uses different helm values.
@@ -66,6 +68,7 @@
        --set nativeRoutingCIDR=10.0.0.0/8
        --set autoDirectNodeRoutes=true
        --set tunnel=disabled
+       --set bpf.hostRouting={{ "true" if host_routing == "legacy" else "false" }}
     when: mode == "directrouting" and encryption == "no" and cilium_version == "1.9"
 
   # NB: cilium 1.9 and later uses different helm values.
@@ -77,6 +80,7 @@
        --set k8sServicePort=6443
        --set ipam.mode=kubernetes
        --set kubeProxyReplacement={{ kubeproxyfree | default("strict") }}
+       --set bpf.hostRouting={{ "true" if host_routing == "legacy" else "false" }}
     when: mode == "tunneling" and encryption == "no" and cilium_version == "1.9"
 
   - name: Install Cilium in VXLAN tunneling mode
@@ -88,6 +92,7 @@
       --set config.ipam=kubernetes
       --set config.blacklistConflictingRoutes=false
       --set global.kubeProxyReplacement={{ kubeproxyfree | default("strict") }}
+      --set global.bpf.hostRouting={{ "true" if host_routing == "legacy" else "false" }}
     when: mode == "tunneling" and encryption == "no" and cilium_version != "1.9"
 
   - name: Generate keys
