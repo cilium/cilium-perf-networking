@@ -22,6 +22,7 @@
     encryption: "no"
     cilium_version: "1.9"
     host_routing: "legacy"
+    hubble: "false"
 
   tasks:
   - name: Initialize the Kubernetes cluster with kube-proxy
@@ -54,6 +55,7 @@
        --set global.autoDirectNodeRoutes=true
        --set global.tunnel=disabled
        --set global.bpf.hostRouting={{ "true" if host_routing == "legacy" else "false" }}
+       --set global.hubble.enabled={{ hubble }}
     when: mode == "directrouting" and encryption == "no" and cilium_version != "1.9"
 
   # NB: cilium 1.9 and later uses different helm values.
@@ -69,6 +71,7 @@
        --set autoDirectNodeRoutes=true
        --set tunnel=disabled
        --set bpf.hostRouting={{ "true" if host_routing == "legacy" else "false" }}
+       --set hubble.enabled={{ hubble }}
     when: mode == "directrouting" and encryption == "no" and cilium_version == "1.9"
 
   # NB: cilium 1.9 and later uses different helm values.
@@ -81,6 +84,7 @@
        --set ipam.mode=kubernetes
        --set kubeProxyReplacement={{ kubeproxyfree | default("strict") }}
        --set bpf.hostRouting={{ "true" if host_routing == "legacy" else "false" }}
+       --set hubble.enabled={{ hubble }}
     when: mode == "tunneling" and encryption == "no" and cilium_version == "1.9"
 
   - name: Install Cilium in VXLAN tunneling mode
@@ -93,6 +97,7 @@
       --set config.blacklistConflictingRoutes=false
       --set global.kubeProxyReplacement={{ kubeproxyfree | default("strict") }}
       --set global.bpf.hostRouting={{ "true" if host_routing == "legacy" else "false" }}
+      --set global.hubble.enabled={{ hubble }}
     when: mode == "tunneling" and encryption == "no" and cilium_version != "1.9"
 
   - name: Generate keys
@@ -116,6 +121,7 @@
       --set global.encryption.enabled=true
       --set global.encryption.nodeEncryption=false
       --set global.encryption.interface=enp1s0f1
+      --set global.hubble.enabled={{ hubble }}
     when: encryption == "yes" and mode == "directrouting"
 
   - name: Generate the kubeadm join command
