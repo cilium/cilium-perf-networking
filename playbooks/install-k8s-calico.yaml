@@ -29,10 +29,19 @@
      - sudo cp /etc/kubernetes/admin.conf "$HOME/.kube/config"
      - sudo chown "{{ ansible_user }}:{{ ansible_user }}" "$HOME/.kube/config"
 
-  - name: Download (and patch) calico files
+  # tigera-operator.yaml is from Calico v3.17.3
+  - name: Copy the tigera-operator yaml
+    ansible.builtin.copy:
+      src: tigera-operator.yaml
+      dest: ./tigera-operator.yaml
+
+  - name: Copy the custom-resources yaml
+    ansible.builtin.copy:
+      src: custom-resources.yaml
+      dest: ./custom-resources.yaml
+
+  - name: Patch calico files
     shell: |
-      curl -O https://docs.projectcalico.org/manifests/tigera-operator.yaml
-      curl -O https://docs.projectcalico.org/manifests/custom-resources.yaml
       PODCIDR="{{ pod_cidr }}"
       sed -i.orig -e "s!cidr: 192.168.0.0/16!cidr: $PODCIDR!" custom-resources.yaml
 
