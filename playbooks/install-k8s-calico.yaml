@@ -44,6 +44,8 @@
     shell: |
       PODCIDR="{{ pod_cidr }}"
       sed -i.orig -e "s!cidr: 192.168.0.0/16!cidr: $PODCIDR!" custom-resources.yaml
+      echo '    nodeAddressAutodetectionV4:' >> custom-resources.yaml
+      echo '      interface: "enp10.*"' >> custom-resources.yaml
 
   - name: Configure calico to always use VXLAN
     shell: |
