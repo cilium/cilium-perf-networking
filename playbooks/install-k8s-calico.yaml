@@ -16,6 +16,7 @@
   vars:
     pod_cidr: "10.217.0.0/16"
     mode: "tunneling"
+    datapath: "default"
 
   tasks:
   - name: Initialize the Kubernetes cluster with kube-proxy
@@ -56,6 +57,23 @@
     shell: |
       kubectl apply -f tigera-operator.yaml
       kubectl apply -f custom-resources.yaml
+
+  - name: Copy the tigera-operator-k8s-svc yaml
+    ansible.builtin.copy:
+      src: tigera-operator-k8s-svc.yaml
+      dest: ./tigera-operator-k8s-svc.yaml
+    when: datapath == "bpf"
+
+  - name: Configure calico to use BPF datapath
+    shell: |
+      kubectl -n tigera-operator apply -f ./tigera-operator-k8s-svc.yaml
+      sleep 60
+      kubectl delete pod -n tigera-operator -l k8s-app=tigera-operator
+      kubectl patch ds -n kube-system kube-proxy -p '{ "spec": { "template": { "spec": { "nodeSelector": { "non-calico": "true"} } } } }'
+      curl -O -L  https://github.com/projectcalico/calicoctl/releases/download/v3.17.3/calicoctl
+      chmod +x calicoctl
+      ./calicoctl patch felixconfiguration default --patch '{ "spec": { "bpfEnabled": true} }'
+    when: datapath == "bpf"
 
   - name: Generate the kubeadm join command
     command: kubeadm token create --print-join-command
