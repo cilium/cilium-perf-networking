@@ -50,7 +50,7 @@
        --set k8sServicePort=6443
        --set ipam.mode=kubernetes
        --set kubeProxyReplacement={{ kubeproxyfree | default("strict") }}
-       --set nativeRoutingCIDR=10.0.0.0/8
+       --set nativeRoutingCIDR={{ pod_cidr }}
        --set autoDirectNodeRoutes=true
        --set tunnel=disabled
        --set bpf.hostRouting={{ "true" if host_routing == "legacy" else "false" }}
@@ -66,7 +66,7 @@
        --set config.ipam=kubernetes
        --set config.blacklistConflictingRoutes=false
        --set global.kubeProxyReplacement={{ kubeproxyfree | default("strict") }}
-       --set global.nativeRoutingCIDR=10.0.0.0/8
+       --set global.nativeRoutingCIDR={{ pod_cidr }}
        --set global.autoDirectNodeRoutes=true
        --set global.tunnel=disabled
        --set global.hubble.enabled={{ hubble }}
@@ -109,7 +109,7 @@
       --set k8sServicePort=6443
       --set ipam.mode=kubernetes
       --set kubeProxyReplacement=disabled
-      --set nativeRoutingCIDR=10.0.0.0/8
+      --set nativeRoutingCIDR={{ pod_cidr }}
       --set autoDirectNodeRoutes=true
       --set tunnel=disabled
       --set hubble.enabled={{ hubble }}
@@ -128,7 +128,7 @@
       --set config.ipam=kubernetes
       --set config.blacklistConflictingRoutes=false
       --set global.kubeProxyReplacement=disabled
-      --set global.nativeRoutingCIDR=10.0.0.0/8
+      --set global.nativeRoutingCIDR={{ pod_cidr }}
       --set global.autoDirectNodeRoutes=true
       --set global.encryption.enabled=true
       --set global.encryption.nodeEncryption=false
@@ -144,7 +144,7 @@
       --set k8sServicePort=6443
       --set ipam.mode=kubernetes
       --set kubeProxyReplacement={{ kubeproxyfree | default("strict") }}
-      --set nativeRoutingCIDR=10.0.0.0/8
+      --set nativeRoutingCIDR={{ pod_cidr }}
       --set autoDirectNodeRoutes=true
       --set tunnel=disabled
       --set hubble.enabled={{ hubble }}
