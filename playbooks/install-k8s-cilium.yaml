@@ -46,23 +46,6 @@
     script: >
        ../scripts/cilium-install-with-helm.sh {{ cilium_version }}
        --namespace kube-system
-       --set global.k8sServiceHost={{ node_ip }}
-       --set global.k8sServicePort=6443
-       --set config.ipam=kubernetes
-       --set config.blacklistConflictingRoutes=false
-       --set global.kubeProxyReplacement={{ kubeproxyfree | default("strict") }}
-       --set global.nativeRoutingCIDR=10.0.0.0/8
-       --set global.autoDirectNodeRoutes=true
-       --set global.tunnel=disabled
-       --set global.bpf.hostRouting={{ "true" if host_routing == "legacy" else "false" }}
-       --set global.hubble.enabled={{ hubble }}
-    when: mode == "directrouting" and encryption == "no" and cilium_version != "1.9"
-
-  # NB: cilium 1.9 and later uses different helm values.
-  - name: Install Cilium (1.9) in direct-routing mode
-    script: >
-       ../scripts/cilium-install-with-helm.sh {{ cilium_version }}
-       --namespace kube-system
        --set k8sServiceHost={{ node_ip }}
        --set k8sServicePort=6443
        --set ipam.mode=kubernetes
@@ -72,10 +55,24 @@
        --set tunnel=disabled
        --set bpf.hostRouting={{ "true" if host_routing == "legacy" else "false" }}
        --set hubble.enabled={{ hubble }}
-    when: mode == "directrouting" and encryption == "no" and cilium_version == "1.9"
+    when: mode == "directrouting" and encryption == "no" and not cilium_version.startswith("1.8")
 
-  # NB: cilium 1.9 and later uses different helm values.
-  - name: Install Cilium (1.9) in VXLAN tunneling mode
+  - name: Install Cilium in direct-routing mode
+    script: >
+       ../scripts/cilium-install-with-helm.sh {{ cilium_version }}
+       --namespace kube-system
+       --set global.k8sServiceHost={{ node_ip }}
+       --set global.k8sServicePort=6443
+       --set config.ipam=kubernetes
+       --set config.blacklistConflictingRoutes=false
+       --set global.kubeProxyReplacement={{ kubeproxyfree | default("strict") }}
+       --set global.nativeRoutingCIDR=10.0.0.0/8
+       --set global.autoDirectNodeRoutes=true
+       --set global.tunnel=disabled
+       --set global.hubble.enabled={{ hubble }}
+    when: mode == "directrouting" and encryption == "no" and cilium_version.startswith("1.8")
+
+  - name: Install Cilium in VXLAN tunneling mode
     script: >
        ../scripts/cilium-install-with-helm.sh {{ cilium_version }}
        --namespace kube-system
@@ -85,7 +82,7 @@
        --set kubeProxyReplacement={{ kubeproxyfree | default("strict") }}
        --set bpf.hostRouting={{ "true" if host_routing == "legacy" else "false" }}
        --set hubble.enabled={{ hubble }}
-    when: mode == "tunneling" and encryption == "no" and cilium_version == "1.9"
+    when: mode == "tunneling" and encryption == "no" and not cilium_version.startswith("1.8")
 
   - name: Install Cilium in VXLAN tunneling mode
     script: >
@@ -96,9 +93,8 @@
       --set config.ipam=kubernetes
       --set config.blacklistConflictingRoutes=false
       --set global.kubeProxyReplacement={{ kubeproxyfree | default("strict") }}
-      --set global.bpf.hostRouting={{ "true" if host_routing == "legacy" else "false" }}
       --set global.hubble.enabled={{ hubble }}
-    when: mode == "tunneling" and encryption == "no" and cilium_version != "1.9"
+    when: mode == "tunneling" and encryption == "no" and cilium_version.startswith("1.8")
 
   - name: Generate keys
     script: ../scripts/cilium-gen-keys.sh
@@ -120,7 +116,24 @@
       --set encryption.enabled=true
       --set encryption.nodeEncryption=false
       --set encryption.interface=enp10s0f0
-    when: encryption == "ipsec" and mode == "directrouting"
+    when: encryption == "ipsec" and mode == "directrouting" and not cilium_version.startswith("1.8")
+
+  # TODO: fix hardcoding of interface here
+  - name: Install Cilium using Encryption (routing mode)
+    script: >
+      ../scripts/cilium-install-with-helm.sh {{ cilium_version }}
+      --namespace kube-system
+      --set global.k8sServiceHost={{ node_ip }}
+      --set global.k8sServicePort=6443
+      --set config.ipam=kubernetes
+      --set config.blacklistConflictingRoutes=false
+      --set global.kubeProxyReplacement=disabled
+      --set global.nativeRoutingCIDR=10.0.0.0/8
+      --set global.autoDirectNodeRoutes=true
+      --set global.encryption.enabled=true
+      --set global.encryption.nodeEncryption=false
+      --set global.encryption.interface=enp10s0f1
+    when: encryption == "yes" and mode == "directrouting" and cilium_version.startswith("1.8")
 
   # TODO: fix hardcoding of interface here
   - name: Install Cilium using Wireguard Encryption in direct routing mode
@@ -138,7 +151,7 @@
       --set encryption.enabled=true
       --set encryption.type=wireguard
       --set l7Proxy=false
-    when: encryption == "wireguard" and mode == "directrouting"
+    when: encryption == "wireguard" and mode == "directrouting" and not cilium_version.startswith("1.8")
 
   - name: Generate the kubeadm join command
     command: kubeadm token create --print-join-command

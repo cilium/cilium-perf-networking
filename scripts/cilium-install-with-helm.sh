@@ -5,7 +5,7 @@ usage() {
     echo "Where version is:"
     echo  "    x.y.z      => version on cilium helm repo"
     echo  "    x.y        => latest x.y version according to cilium's README.md"
-    echo  "    master     => latest helm chart from cilium master, and docker.io/cilium/cilium-dev:latest image"
+    echo  "    master     => latest helm chart from cilium master, and docker.io/cilium/cilium-ci:latest image"
     echo  "    master:xxx => latest helm chart from cilium master, and xxxx image"
 }
 
@@ -38,10 +38,12 @@ elif echo $version | grep -Eq '^v?[0-9]\.[0-9]\.[0-9]$'; then
     helm_ver=$version
 elif [ "$version" == "master" ]; then
     git_ver="master"
-    cilium_image="docker.io/cilium/cilium-dev:latest"
+    cilium_image="quay.io/cilium/cilium-ci:latest"
+    operator_image="quay.io/cilium/operator-generic-ci:latest"
 elif echo $version | grep -Eq '^master:.*$'; then
     git_ver="master"
     cilium_image=$(echo $version | sed -e 's/^master://')
+    operator_image=$(echo $version | sed -e 's/^master://')
 else
     echo >2 "Unknown version: $version"
     usage
@@ -64,8 +66,11 @@ else
 fi
 
 if [ -n "$cilium_image" ]; then
-    echo $cilium_image
-    sed -i.orig "s^docker.io/cilium/cilium:latest^$cilium_image^g" $yaml_file
+    sed -i.orig "s^quay.io/cilium/cilium:latest^$cilium_image^g" $yaml_file
+fi
+
+if [ -n "$operator_image" ]; then
+    sed -i.orig "s^quay.io/cilium/operator-generic:latest^$operator_image^g" $yaml_file
 fi
 
 kubectl apply -f $yaml_file
