@@ -5,7 +5,7 @@ usage() {
     echo "Where version is:"
     echo  "    x.y.z      => version on cilium helm repo"
     echo  "    x.y        => latest x.y version according to cilium's README.md"
-    echo  "    master     => latest helm chart from cilium master, and docker.io/cilium/cilium-ci:latest image"
+    echo  "    master     => latest helm chart from cilium master, and quay.io/cilium/cilium-ci:latest image"
     echo  "    master:xxx => latest helm chart from cilium master, and xxxx image"
 }
 
@@ -18,23 +18,23 @@ shift
 
 README="https://raw.githubusercontent.com/cilium/cilium/master/README.rst"
 # x.y
-if echo $version | grep -Eq '^v?[0-9]\.[0-9]$'; then
+if echo $version | grep -Eq '^v?[0-9]\.[0-9]+$'; then
 		case "$version" in
-			v1.9|1.9) helm_ver=$(curl -s $README | sed -ne 's/^| `v1\.9.*docker.io\/cilium\/cilium:v\([^`]\+\).*$/\1/p')
-                ;;
-			v1.8|1.8) helm_ver=$(curl -s $README | sed -ne 's/^| `v1\.8.*docker.io\/cilium\/cilium:v\([^`]\+\).*$/\1/p')
-				;;
-			v1.7|1.7) helm_ver=$(curl -s $README | sed -ne 's/^| `v1\.7.*docker.io\/cilium\/cilium:v\([^`]\+\).*$/\1/p')
-				;;
-			v1.6|1.6) helm_ver=$(curl -s $README | sed -ne 's/^| `v1\.6.*docker.io\/cilium\/cilium:v\([^`]\+\).*$/\1/p')
-                ;;
+			v1.10|1.10) helm_ver=$(curl -s $README | sed -ne 's/^| `v1\.10.*quay.io\/cilium\/cilium:v\([^`]\+\).*$/\1/p')
+		;;
+			v1.9|1.9) helm_ver=$(curl -s $README | sed -ne 's/^| `v1\.9.*quay.io\/cilium\/cilium:v\([^`]\+\).*$/\1/p')
+		;;
+			v1.8|1.8) helm_ver=$(curl -s $README | sed -ne 's/^| `v1\.8.*quay.io\/cilium\/cilium:v\([^`]\+\).*$/\1/p')
+		;;
+			v1.7|1.7) helm_ver=$(curl -s $README | sed -ne 's/^| `v1\.7.*quay.io\/cilium\/cilium:v\([^`]\+\).*$/\1/p')
+		;;
             *)
                 echo >2 "Unknown version: $version"
                 usage
                 exit 1
                 ;;
         esac
-elif echo $version | grep -Eq '^v?[0-9]\.[0-9]\.[0-9]$'; then
+elif echo $version | grep -Eq '^v?[0-9]\.[0-9]+\.[0-9](-rc[0-9])?$'; then
     helm_ver=$version
 elif [ "$version" == "master" ]; then
     git_ver="master"
