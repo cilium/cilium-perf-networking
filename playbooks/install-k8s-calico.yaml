@@ -73,6 +73,9 @@
       curl -O -L  https://github.com/projectcalico/calicoctl/releases/download/v3.17.3/calicoctl
       chmod +x calicoctl
       ./calicoctl patch felixconfiguration default --patch '{ "spec": { "bpfEnabled": true} }'
+      ./calicoctl patch felixconfiguration default --patch '{ "spec": { "bpfExternalServiceMode": "DSR"} }'
+      ./calicoctl patch felixconfiguration default --patch '{ "spec": { "routeSource": "WorkloadIPs"} }'
+      ./calicoctl patch felixconfiguration default --patch '{ "spec": { "vxlanEnabled": false} }'
     when: datapath == "bpf"
 
   - name: Generate the kubeadm join command
