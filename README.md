@@ -1,3 +1,7 @@
+# Archived
+
+This repository is no longer maintained.
+
 # Introduction 
 
 https://docs.cilium.io/en/latest/operations/performance/
